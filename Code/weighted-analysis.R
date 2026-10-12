@@ -15,10 +15,10 @@ workflow_weighted_analysis <- function(b,
 {
   
   #'# Load methods ---------------------------------------
-  source('codice/functions/weighted-smoothing.R')
-  source('codice/functions/weighted-regression.R')
-  source('codice/functions/unweighted-regression.R')
-  source('codice/functions/reconstruction.R')
+  source('Code/functions/weighted-smoothing.R')
+  source('Code/functions/weighted-regression.R')
+  source('Code/functions/unweighted-regression.R')
+  source('Code/functions/reconstruction.R')
   
   ## Utilities for the identification of the b-th batch
   n <- dim(curves)[2]
@@ -842,9 +842,9 @@ pwMSE <- function(curves, curves.fd, xlist, t.points, events, blist, B,
                   verbose=TRUE)
 {
   #' Methods ------------------------------------------------------------------
-  source('codice/functions/weighted-regression.R')
-  source('codice/functions/unweighted-regression.R')
-  source('codice/functions/scalar-analysis.R')
+  source('Code/functions/weighted-regression.R')
+  source('Code/functions/unweighted-regression.R')
+  source('Code/functions/scalar-analysis.R')
   
   #' Utilities ------------------------------------------------------------------
   n <- dim(curves)[2]
@@ -858,7 +858,6 @@ pwMSE <- function(curves, curves.fd, xlist, t.points, events, blist, B,
   
   set.seed(140996)
   shuffled.unique.events <- sample(unique.events, n.events)
-  
   MSE_eval <- matrix(data=0, nrow=N, ncol=B)
   Sigma_eval <- matrix(data=0, nrow=N, ncol=B)
   MSE_ita18 <- matrix(data=0, nrow=N, ncol=B)
@@ -948,8 +947,9 @@ pwMSE <- function(curves, curves.fd, xlist, t.points, events, blist, B,
         if (Zdimj[2] != 1) {
           print(paste("Matrix in XFDLIST[[",j,"]] has more than one column."))
           xerror = TRUE 
-        } 
+        }
         xfdlist.test[[j]] <- fd(matrix(xfdj,1,n.test), onebasis)
+        
       }
     }
     

@@ -19,16 +19,17 @@ add_regressors <- function(df, h_val, Mh_val, Mref_val, period) {
 smooth_fd <- function(X, cv, grid, tp) {
   basis <- create.bspline.basis(rangeval = range(tp), breaks = tp, norder = if (cv) 4 else 3)
   if (!cv) {
-    return(smooth.basis(tp, X, fdPar(basis, 1, 0.1))$fd)
+    return(list(0.1, smooth.basis(tp, X, fdPar(basis, 1, 0.1))$fd))
   }
   gcv <- sapply(grid, function(l) sum(smooth.basis(tp, X, fdPar(basis, 2, l))$gcv))
-  smooth.basis(tp, X, fdPar(basis, 2, grid[which.min(gcv)]))$fd
+  list(grid[which.min(gcv)],
+      smooth.basis(tp, X, fdPar(basis, 2, grid[which.min(gcv)]))$fd)
+
 }
 
 build_xlist_fda <- function(data, T.emp, Mh, Mref, h, fixed.idx = c(1, 2),
                             lambda.grid = 10^-seq(-1, 12, by = 1),
                             lambda.grid.mref = 10^-seq(-1, 10, by = 1)) {
-  
   ord <- order(T.emp); T.emp <- T.emp[ord]; Mh <- Mh[ord]; Mref <- Mref[ord]; h <- h[ord]
   tp <- log10(T.emp); tp[!is.finite(tp)] <- -2.5
   cols <- names(data)
@@ -51,14 +52,13 @@ build_xlist_fda <- function(data, T.emp, Mh, Mref, h, fixed.idx = c(1, 2),
       Xk  <- t(as.matrix(data[, fcol[fidx == k][sel], drop = FALSE]))  # p x n, ordine T.emp
       
       # Passiamo sia lambda.grid che tp
-      xlist[[length(xlist) + 1]] <- smooth_fd(Xk, cv = !(k %in% fixed.idx), grid = lambda.grid, tp = tp)
+      xlist[[length(xlist) + 1]] <- smooth_fd(Xk, cv = !(k %in% fixed.idx), grid = lambda.grid, tp = tp)[[2]]
     }
   }
-  
   attr(xlist, "params.fd") <- list(
-    Mh.fd   = smooth_fd(Mh, cv = FALSE, grid = lambda.grid, tp = tp),
-    Mref.fd = smooth_fd(Mref, cv = TRUE, grid = lambda.grid.mref, tp = tp),
-    h.fd    = smooth_fd(h, cv = TRUE, grid = lambda.grid, tp = tp)
+    Mh.fd   = smooth_fd(Mh, cv = FALSE, grid = lambda.grid, tp = tp)[[2]],
+    Mref.fd = smooth_fd(Mref, cv = TRUE, grid = lambda.grid.mref, tp = tp)[[2]],
+    h.fd    = smooth_fd(h, cv = TRUE, grid = lambda.grid, tp = tp)[[2]]
   )
   
   xlist
