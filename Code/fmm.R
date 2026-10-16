@@ -19,7 +19,7 @@ Mh <- ITA18.parameters$Mh.vec[-1]
 h <- ITA18.parameters$h.vec[-1]
 Mref <- ITA18.parameters$Mref.vec[-1]
 ITA18 <- data.frame(
-  event = df_emp$event_id,
+  event = as.factor(df_emp$event_id),
   mw = df_emp$Mw,
   djb = df_emp$JB_dist,
   vs30 = df_emp$vs30_m_sec,
@@ -244,5 +244,44 @@ plot(beta.fd[[9]])
 y.hat <- fit.fregress$yhatfdobj
 res.fd <- fit.fregress$yfdobj - fit.fregress$yhatfdobj
 
-#COMPUTE dS2S
+################################################################################
 
+library(nlme)
+library(lme4)
+library(refund)
+
+
+n <- nrow(logsa); tt <- log10(T.emp)
+Xl <- lapply(xlist, function(x) if(is.fd(x)) t(eval.fd(tt, x)) else matrix(x, n, length(tt)))
+names(Xl) <- paste0("x", seq_along(Xl))
+df <- c(list(Y = as.matrix(logsa), Station = droplevels(ITA18$Station), Event = droplevels(ITA18$event)), Xl[-1])
+f <- as.formula(paste("Y ~", paste(c(names(Xl)[-1], 
+                                     's(Station, bs="re")',
+                                     's(Event, bs="re")'), 
+                                   collapse=" + ")))
+fit.pffr <- pffr(f, yind = tt, data = df, algorithm = "bam")
+
+
+cf <- coef(fit.pffr)$smterms
+fix <- cf[grep("^(Intercept|x[0-9]+)", names(cf))]
+beta <- list(t = fix[[1]]$coef[[1]],
+             value = sapply(fix, function(s) s$coef$value),
+             se = sapply(fix, function(s) s$coef$se))
+
+
+beta$fd <- smooth.basis(beta$t, beta$value, logsa.fd$basis)$fd
+beta$se.fd <- smooth.basis(beta$t, beta$se, logsa.fd$basis)$fd
+
+par(mfrow = c(3,3))
+for(j in 1:9){
+  plot(beta.fd[[j]]$fd, ylim = range(eval.fd(tt, beta.fd[[j]]$fd), eval.fd(tt, beta$fd[j])), main = paste0("beta", j))
+  lines(beta$fd[j], col = "blue")
+}
+
+par(mfrow = c(3,3))
+for(j in 1:9){
+  lo <- beta$value[,j] - 2*beta$se[,j]; up <- beta$value[,j] + 2*beta$se[,j]
+  plot(beta.fd[[j]]$fd, ylim = range(eval.fd(tt, beta.fd[[j]]$fd), lo, up), main = paste0("beta", j))
+  polygon(c(beta$t, rev(beta$t)), c(lo, rev(up)), col = adjustcolor("blue", .2), border = NA)
+  lines(beta$fd[j], col = "blue")
+}
