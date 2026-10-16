@@ -238,18 +238,13 @@ if(calibrate){
 
 load('Results/Calibration/blist_EAASS_multistart.RData')
 fit.fregress <- fRegress(logsa.fd, xlist, blist)
-beta.fd <- fit.fregress$betaestlist
-plot(beta.fd[[9]])
+beta.fd.old <- fit.fregress$betaestlist
 
 y.hat <- fit.fregress$yhatfdobj
 res.fd <- fit.fregress$yfdobj - fit.fregress$yhatfdobj
 
 ################################################################################
-
-library(nlme)
-library(lme4)
 library(refund)
-
 
 n <- nrow(logsa); tt <- log10(T.emp)
 Xl <- lapply(xlist, function(x) if(is.fd(x)) t(eval.fd(tt, x)) else matrix(x, n, length(tt)))
@@ -272,16 +267,20 @@ beta <- list(t = fix[[1]]$coef[[1]],
 beta$fd <- smooth.basis(beta$t, beta$value, logsa.fd$basis)$fd
 beta$se.fd <- smooth.basis(beta$t, beta$se, logsa.fd$basis)$fd
 
-par(mfrow = c(3,3))
-for(j in 1:9){
-  plot(beta.fd[[j]]$fd, ylim = range(eval.fd(tt, beta.fd[[j]]$fd), eval.fd(tt, beta$fd[j])), main = paste0("beta", j))
-  lines(beta$fd[j], col = "blue")
-}
 
 par(mfrow = c(3,3))
 for(j in 1:9){
   lo <- beta$value[,j] - 2*beta$se[,j]; up <- beta$value[,j] + 2*beta$se[,j]
-  plot(beta.fd[[j]]$fd, ylim = range(eval.fd(tt, beta.fd[[j]]$fd), lo, up), main = paste0("beta", j))
+  plot(beta.fd.old[[j]]$fd, ylim = range(eval.fd(tt, beta.fd.old[[j]]$fd), lo, up), main = paste0("beta", j))
   polygon(c(beta$t, rev(beta$t)), c(lo, rev(up)), col = adjustcolor("blue", .2), border = NA)
   lines(beta$fd[j], col = "blue")
 }
+
+
+
+tr <- predict(fit.pffr, type = "terms"); nm <- names(tr)
+S <- tr[[grep("Station", nm)]][!duplicated(df$Station), ]
+E <- tr[[grep("Event", nm)]][!duplicated(df$Event), ]
+R <- residuals(fit.pffr)
+matplot(T.emp, cbind(apply(S,2,sd), apply(E,2,sd), apply(R,2,sd)), type = "l", log = "x", lty = 1, col = c(2,4,1), xlab = "T [s]", ylab = "sd")
+legend("topright", c("dS2S","dB","dWS"), col = c(2,4,1), lty = 1)
