@@ -25,9 +25,7 @@ ITA18 <- data.frame(
   vs30 = df_emp$vs30_m_sec,
   sof = df_emp$fm_type_code,
   Station = as.factor(df_emp$station_code)
-) 
-ITA18$djb[is.na(ITA18$djb)] <- df_emp$epi_dist[is.na(ITA18$djb)]
-ITA18$vs30[is.na(ITA18$vs30)]<-df_emp$vs30_m_sec_WA[is.na(ITA18$vs30)]
+)
 ITA18$djb[is.na(ITA18$djb)]   <- df_emp$epi_dist[is.na(ITA18$djb)]
 ITA18$vs30[is.na(ITA18$vs30)] <- df_emp$vs30_m_sec_WA[is.na(ITA18$vs30)]
 
@@ -51,17 +49,18 @@ na_rows <- sapply(1:nrow(logsa), function(i){
 
 recurrence_station <- sapply(unique(ITA18$Station), function(s){
   sum(ITA18$Station == s)
-}) 
+})
 too_few <- sapply(ITA18$Station, function(s){
   recurrence_station[which(s==unique(ITA18$Station))]<10
 })
 
 ITA18 <- ITA18[!na_rows & !too_few,]
 logsa <- logsa[!na_rows & !too_few,]
-#BUILD FUNCTIONAL DATASET 
+#BUILD FUNCTIONAL DATASET
 
 #da cambiare
 ITA18 <- read.csv("Data/ITA18_source-path.csv")
+stopifnot(nrow(ITA18) == nrow(logsa))
 library(fda)
 xlist <- build_xlist_fda(ITA18, T.emp, Mh, Mref, h)
 xlist[[4]] <- as.numeric(xlist[[4]])
@@ -69,7 +68,7 @@ xlist[[5]] <- as.numeric(xlist[[5]])
 bsplines <- smooth_fd(t(as.matrix(logsa)), TRUE, grid = 10^-seq(-1, 12, by = 1), tp = log10(T.emp))
 logsa.fd <- bsplines[[2]]
 
-#ESTIMATE FIXED PARAMETERS - Multistart EAASS algorithm 
+#ESTIMATE FIXED PARAMETERS - Multistart EAASS algorithm
 fPar  <- fdPar(fdobj=logsa.fd$basis, Lfdobj=2, lambda=bsplines[[1]])
 blist.default <- list(fPar, fPar, fPar, fPar, fPar, fPar, fPar, fPar, fPar)
 
@@ -111,7 +110,7 @@ if(calibrate){
       # define blist
       blist <- blist.default
       for(reg in 1:n.par){
-        blist[[reg]]$lambda <- P.initial[i,reg] 
+        blist[[reg]]$lambda <- P.initial[i,reg]
       }
       
       # evaluate the MSE via B-fold CV
@@ -145,7 +144,7 @@ if(calibrate){
     for(k in 1:n.iter){
       print(paste0("Iteration: ",k))
       
-      V.sort <- sort(V, decreasing=TRUE)
+      V.sort <- sort(V, decreasing=FALSE)                 # keep the best half (lowest CV error)
       idxs.in <- which(V %in% V.sort[1:(r*P.size)])
       if(length(idxs.in)>(r*P.size)){ #solve ties by randomly selecting only r*P.size indexes
         idxs.in <- sample(idxs.in, size=(r*P.size), replace=FALSE)
@@ -170,7 +169,7 @@ if(calibrate){
         # define blist
         blist <- blist.default
         for(reg in 1:n.par){
-          blist[[reg]]$lambda <- Q_prime[i,reg] 
+          blist[[reg]]$lambda <- Q_prime[i,reg]
         }
         
         # evaluate the MSE via B-fold CV
@@ -199,7 +198,7 @@ if(calibrate){
     
     save(P, V, file=paste0("Results/Calibration/P_V_blist_select_seed",seed,".RData"))
     
-    best <- which(V==min(V))
+    best <- which.min(V)
     lambda.opt <- P[best,]
     blist <- blist.default
     for(reg in 1:n.par){
@@ -226,7 +225,7 @@ if(calibrate){
   #plot(1:length(V.full), V.full, type='l')
   #dev.off()
   
-  best <- which(V.full==min(V.full))
+  best <- which.min(V.full)
   lambda.opt <- P.full[best,]
   
   #' lambda.opt contains the values reported in Table 1 of the Supplementary Material.
@@ -269,8 +268,15 @@ f <- as.formula(paste("Y ~", paste(c(names(Xl)[-1],
                                      's(Event, bs="re")',
                                      's(Source, bs="re")'), collapse = " + ")))
 
+## --- base in t: B-spline cubiche, un nodo per periodo, penalità su f'' (lambda via REML)
+yindex <- tt                                               # nome fisso -> variabile "yindex.vec" in pffr
+bsy <- list(bs = "bs", k = length(tt) + 2, m = c(3, 2))
+kn <- list(yindex.vec = c(tt[1] - (3:1) * diff(tt[1:2]), tt, tail(tt, 1) + (1:3) * diff(tail(tt, 2))))
+
 ## --- fit -----------------------------------------------------------------------
-fit.pffr <- pffr(f, yind = tt, data = df, algorithm = "bam", nthreads = 5)
+fit.pffr <- pffr(f, yind = yindex, data = df, algorithm = "bam", nthreads = 5,
+                 bs.yindex = bsy, bs.int = bsy, knots = kn)
+stopifnot(isTRUE(all.equal(fit.pffr$smooth[[2]]$knots[3 + seq_along(tt)], tt)))   # nodi = periodi
 
 ## --- beta come oggetti fd (stessa stima, base fda su [-2,1]) + covarianza --------
 sm <- fit.pffr$smooth; th <- fit.pffr$coefficients; Vp <- fit.pffr$Vp
@@ -280,9 +286,9 @@ beta.fd <- C.fd <- vector("list", 9)
 for (j in 1:9) {
   s   <- sm[[j]]
   br  <- c(rng[1], s$knots[s$knots > rng[1] & s$knots < rng[2]], rng[2])
-  bas <- create.bspline.basis(rng, norder = s$m[1] + 2, breaks = br)
+  bas <- create.bspline.basis(rng, norder = s$m[1] + 1, breaks = br)
   x   <- seq(rng[1], rng[2], length.out = 10 * bas$nbasis)
-  nd  <- data.frame(yindex.vec = x); if (s$by != "NA") nd[[s$by]] <- 1
+  nd  <- setNames(data.frame(x), s$term[1]); if (s$by != "NA") nd[[s$by]] <- 1
   X   <- PredictMat(s, nd)
   idx <- s$first.para:s$last.para
   if (j == 1) { X <- cbind(1, X); idx <- c(1, idx) }       # beta_1 = (Intercept) + s(t)
@@ -371,10 +377,11 @@ for (c in colnames(SD.pffr)) {
           ylim = c(0, max(SD.pffr, SD.lmer)))
 }
 
-legend("topright", c("pffr", "lmer"), col = c("blue", "red"), lty = 1, bty = "n", y.intersp = 0.4)
+legend("topright", c("Functional LMM", "Scalar LMM"), col = c("blue", "red"), lty = 1, bty = "n", y.intersp = 0.4)
 
 
-## --- K-fold per evento -------------------------------------------------------------
+## --- K-fold per evento (parallelo sui fold) ----------------------------------------
+library(parallel)
 K <- 10; set.seed(123)
 ev   <- levels(df$Event)
 fold <- setNames(sample(rep(1:K, length.out = length(ev))), ev)[as.character(df$Event)]
@@ -382,34 +389,48 @@ grp  <- c("Station", "Event", "Source")
 sub.df <- function(d, i) lapply(d, function(v) if (is.matrix(v)) v[i, , drop = FALSE] else v[i])
 lm.df  <- function(d, p) data.frame(y = d$Y[, p], sapply(d[names(Xl)[-1]], function(x) x[, p]), d[grp])
 
-err <- array(NA, c(n, nT, 2), dimnames = list(NULL, NULL, c("pffr", "lmer")))
+f0   <- as.formula(paste("Y ~", paste(names(Xl)[-1], collapse = " + ")))   # funzionale, solo effetti fissi
+fs0  <- as.formula(paste("y ~", paste(names(Xl)[-1], collapse = " + ")))   # scalare, solo effetti fissi
+mods <- c("scalar", "functional", "scalar.lmm", "functional.lmm")
 
-library(progress)
-pb <- progress_bar$new(total = K)
-for (k in 1:K) {
-  pb$tick()
+cv.fold <- function(k) {
   tr <- which(fold != k); te <- which(fold == k)
   dtr <- sub.df(df, tr); dtr[grp] <- lapply(dtr[grp], droplevels)
   dte <- sub.df(df, te)
   for (g in c("Station", "Source")) dte[[g]] <- factor(dte[[g]], levels = levels(dtr[[g]]))
   stopifnot(!anyNA(dte$Station), !anyNA(dte$Source))           # livelli di test visti in training
   dte$Event <- factor(rep(levels(dtr$Event)[1], length(te)), levels = levels(dtr$Event))  # fittizio, termine escluso
+  e <- array(NA, c(length(te), nT, length(mods)), dimnames = list(NULL, NULL, mods))
   
-  ## pffr: fixed + Station + Source (Event escluso)
-  m.f <- pffr(f, yind = tt, data = dtr, algorithm = "bam")
-  err[te, , "pffr"] <- dte$Y - predict(m.f, newdata = dte[-1], exclude = "ti(Event,yindex.vec)")
+  ## funzionale LMM: fixed + Station + Source (Event escluso)
+  m.f <- pffr(f, yind = yindex, data = dtr, algorithm = "bam", bs.yindex = bsy, bs.int = bsy, knots = kn)
+  ex  <- grep("Event", sapply(m.f$smooth, `[[`, "label"), value = TRUE)
+  e[, , "functional.lmm"] <- dte$Y - predict(m.f, newdata = dte[-1], exclude = ex)
   
-  ## lmer: un fit per periodo, stessa previsione
+  ## funzionale, solo effetti fissi
+  m.f0 <- pffr(f0, yind = yindex, data = dtr, algorithm = "bam", bs.yindex = bsy, bs.int = bsy, knots = kn)
+  e[, , "functional"] <- dte$Y - predict(m.f0, newdata = dte[-1])
+  
+  ## scalari: un fit per periodo
   for (p in 1:nT) {
-    m.l <- lmer(fs, data = lm.df(dtr, p))
-    err[te, p, "lmer"] <- dte$Y[, p] - predict(m.l, lm.df(dte, p), re.form = ~ (1 | Station) + (1 | Source))
+    dp <- lm.df(dtr, p); dq <- lm.df(dte, p)
+    e[, p, "scalar.lmm"] <- dq$y - predict(lmer(fs, data = dp), dq, re.form = ~ (1 | Station) + (1 | Source))
+    e[, p, "scalar"]     <- dq$y - predict(lm(fs0, data = dp), dq)
   }
+  list(te = te, e = e)
 }
 
-## --- RMSE di test per periodo ---------------------------------------------------------
-rmse <- apply(err, c(2, 3), function(e) sqrt(mean(e^2)))
+nc  <- min(K, detectCores() - 1)
+out <- mclapply(1:K, cv.fold, mc.cores = nc)
+err <- array(NA, c(n, nT, length(mods)), dimnames = list(NULL, NULL, mods))
+for (o in out) err[o$te, , ] <- o$e
+
+## --- MSE di test per periodo ----------------------------------------------------------
+mse <- apply(err, c(2, 3), function(e) mean(e^2))
+lab <- c("Scalar", "Functional", "Scalar LMM", "Functional LMM")
+cl  <- c("red", "blue", "red", "blue"); lt <- c(2, 2, 1, 1)
 graphics.off()
-matplot(T.emp, rmse, type = "l", lty = 1, lwd = 2, col = c("blue", "red"), log = "x",
-        xlab = "T [s]", ylab = "RMSE test")
-legend("bottomleft", c("pffr", "lmer"), col = c("blue", "red"), lty = 1, bty = "n")
-colMeans(rmse)
+matplot(T.emp, mse, type = "l", lty = lt, lwd = 2, col = cl, log = "x",
+        xlab = "T [s]", ylab = "MSE test")
+legend("bottomleft", lab, col = cl, lty = lt, lwd = 2, bty = "n")
+setNames(colMeans(mse), lab)
