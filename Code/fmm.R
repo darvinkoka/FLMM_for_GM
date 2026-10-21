@@ -1,7 +1,7 @@
 rm(list=ls())
 t0 <- Sys.time()
 
-setwd(Sys.getenv("PROJ_DIR", "~/Documents/PhD/PROJECTS/FLMM_for_GM"))
+#setwd(Sys.getenv("PROJ_DIR", "~/Documents/PhD/PROJECTS/FLMM_for_GM"))
 ncores    <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "5"))
 calibrate <- Sys.getenv("CALIBRATE", "0") == "1"
 odir <- "Results/Cluster"
