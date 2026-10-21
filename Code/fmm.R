@@ -15,6 +15,10 @@ source("Code/utils_fmm.R")
 source("Code/weighted-analysis.R")
 df_emp<- read.csv("Data/ITA18_SA_flatfile.csv", sep = ";")
 library(readxl)
+library(fda)
+library(refund)
+library(mgcv)
+library(lme4)
 load("Data/ITA18_parameters.RData")
 
 #DATA PREPROCESSING
@@ -68,7 +72,6 @@ logsa <- logsa[!na_rows & !too_few,]
 #da cambiare
 ITA18 <- read.csv("Data/ITA18_source-path.csv")
 stopifnot(nrow(ITA18) == nrow(logsa))
-library(fda)
 xlist <- build_xlist_fda(ITA18, T.emp, Mh, Mref, h)
 xlist[[4]] <- as.numeric(xlist[[4]])
 xlist[[5]] <- as.numeric(xlist[[5]])
@@ -219,9 +222,6 @@ msg("fRegress done")
 ################################################################################
 # FAMM con refund::pffr
 ################################################################################
-library(refund)
-library(mgcv)
-
 n  <- nrow(logsa); tt <- log10(T.emp)
 Xl <- lapply(xlist, function(x) if (is.fd(x)) t(eval.fd(tt, x)) else matrix(x, n, length(tt)))
 names(Xl) <- paste0("x", seq_along(Xl))
@@ -301,7 +301,6 @@ saveRDS(list(S = S, E = E, L = L, R = R), file.path(odir, "components_pffr.rds")
 ################################################################################
 # Modello scalare: un lmer per periodo
 ################################################################################
-library(lme4)
 
 nT <- length(tt)
 fs <- as.formula(paste("y ~", paste(names(Xl)[-1], collapse = " + "),
