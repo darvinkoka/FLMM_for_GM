@@ -201,7 +201,10 @@ for (j in 1:9) {
   b   <- eval.fd(tg, beta.fd[[j]])
   se  <- sqrt(rowSums((Phi %*% C.fd[[j]]) * Phi))
   lo  <- b - 2 * se; up <- b + 2 * se
-  plot(tg, b, col = "blue", lwd = 1, ylim = c(min(lo), max(up)))
+  plot(tg, b, col = "blue", type = "l",lwd = 1, ylim = c(min(lo), max(up)))
   polygon(c(tg, rev(tg)), c(lo, rev(up)), col = adjustcolor("blue", .2), border = NA)
+  points(tt, B.lmer[, j], pch = 16, cex = .6, col = "red", ylim = c(min(lo), max(up)))
+  lo  <- B.lmer[, j] - 2 * SE.lmer[, j]; up <- B.lmer[, j] + 2 * SE.lmer[, j]
+  arrows(tt, lo, tt, up, length = 0, col = "red")
   grid()
 }
