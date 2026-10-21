@@ -46,7 +46,7 @@ build_xlist_fda <- function(data, T.emp, Mh, Mref, h, fixed.idx = c(1, 2),
   xlist <- list(rep(1, nrow(data)))
   for (k in sort(unique(c(fidx, sidx)))) {
     if (k %in% sidx) {
-      xlist[[length(xlist) + 1]] <- data[[scol[sidx == k]]]
+      xlist[[length(xlist) + 1]] <- as.numeric(data[[scol[sidx == k]]])
     } else {
       sel <- sapply(T.emp, function(t) which.min(abs(fper[fidx == k] - t)))
       Xk  <- t(as.matrix(data[, fcol[fidx == k][sel], drop = FALSE]))  # p x n, ordine T.emp
@@ -62,4 +62,37 @@ build_xlist_fda <- function(data, T.emp, Mh, Mref, h, fixed.idx = c(1, 2),
   )
   
   xlist
+}
+
+
+fpc_mom <- function(R, G, pve = 0.95) {
+  # etichette di gruppo + Res (ogni record è un livello)
+  Z  <- c(lapply(G, as.character), list(Res = as.character(seq_len(nrow(R)))))
+  nk <- length(Z)
+  nT <- ncol(R)
+  
+  # A[k, l] = n. coppie (i, j) che condividono sia g_k che g_l
+  A <- matrix(0, nk, nk, dimnames = list(names(Z), names(Z)))
+  for (k in 1:nk) for (l in 1:nk)
+    A[k, l] <- sum(table(paste(Z[[k]], Z[[l]]))^2)
+  
+  # b_k = U'U, con U = somme dei residui per livello
+  B <- sapply(Z, function(z) {
+    U <- rowsum(R, z)
+    c(crossprod(U))
+  })
+  
+  # A K(t,t') = b(t,t') per tutte le (t,t')
+  K <- B %*% solve(A)
+  
+  # FPC di ciascuna K_k
+  fpc <- lapply(names(G), function(k) {
+    Kk <- matrix(K[, k], nT, nT)
+    e  <- eigen(Kk, symmetric = TRUE)
+    v  <- pmax(e$values, 0)
+    M  <- which(cumsum(v) / sum(v) >= pve)[1]
+    list(efunctions = e$vectors[, 1:M, drop = FALSE], evalues = v[1:M])
+  })
+  names(fpc) <- names(G)
+  fpc
 }
