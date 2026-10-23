@@ -4,7 +4,7 @@ cat("\014")
 gc()
 
 setwd('~/Documents/PhD/PROJECTS/FLMM_for_GM')
-source("Code/utils_fmm.R")
+source("Code/utils_flmm.R")
 source("Code/weighted-analysis.R")
 df_emp<- read.csv("Data/ITA18_SA_flatfile.csv", sep = ";")
 library(readxl)
@@ -245,3 +245,5 @@ beta.fd.old <- fit.fregress$betaestlist
 
 y.hat <- fit.fregress$yhatfdobj
 res.fd <- fit.fregress$yfdobj - fit.fregress$yhatfdobj
+
+saveRDS(res.fd, "Data/Responce_centered.RData")

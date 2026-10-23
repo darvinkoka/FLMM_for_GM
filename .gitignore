@@ -1,2 +1,5 @@
 cache*.RData
 cahce*.RData
+/Results
+.RData
+.Rhistory
