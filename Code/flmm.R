@@ -182,9 +182,8 @@ PHI <- lapply(fit0$phi, function(P) apply(P, 2, function(p) approx(tg, p, xout =
 df[paste0("PHI.", re)] <- PHI
 pc  <- sprintf("pcre(id = %s, efunctions = PHI.%s, evalues = fit0$nu[[%d]], yind = tt)", re, re, 1:4)
 f.fpc    <- as.formula(paste("Y ~", paste(c(names(Xl)[-1], pc), collapse = " + ")))
-fit.famm <- pffr(f.fpc, yind = tt, data = df, algorithm = "bam",method = "fREML", nthreads = 4, bs.int = basi, bs.yindex = basi)
-
-
+fit.famm <- pffr(f.fpc, yind = tt, data = df, algorithm = "bam",method = "fREML", nthreads = 4, bs.int = basi, bs.yindex = basi, control = gam.control(trace = TRUE))
+saveRDS(fit.famm, "Results/famm.RData")
 #PLOTS
 cf <- coef(fit.famm, n1 = 100)$smterms[1:9]; b0 <- fit.famm$coefficients["(Intercept)"]
 par(mfrow = c(3, 3))
@@ -230,3 +229,4 @@ for (g in colnames(SD.famm)) {
 }
 plot(T.emp, tot(SD.famm), type = "l", lwd = 2, col = "blue", log = "x", ylim = range(0, tot(SD.famm), tot(VC.lmer)), xlab = "T [s]", ylab = expression(sigma))
 points(T.emp, tot(VC.lmer), pch = 19, col = "red"); grid()
+
